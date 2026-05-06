@@ -16,6 +16,140 @@
 
 ## 架构设计
 
+### 系统架构流程图
+
+```mermaid
+graph TB
+    subgraph "Application Layer 业务层"
+        APP[Application Code]
+        REPO_IMPL["UserRepository / OrderRepository"]
+    end
+
+    subgraph "Repository Layer 仓储层"
+        REPO_TRAIT["Repository Trait\ninsert / find / update / delete"]
+        QB["QueryBuilder\nType-Safe CQL"]
+        POOL_MGR["PoolManager"]
+    end
+
+    subgraph "Client Layer 客户端层"
+        CLIENT["CassandraClient"]
+        SESSION["Arc&lt;Session&gt;\nThread-Safe Shared"]
+        STMT_CACHE["Prepared Statement Cache"]
+    end
+
+    subgraph "Resilience Layer 弹性层"
+        RETRY["RetryPolicy\nExponential Backoff"]
+        CB["CircuitBreaker\nFast Fail"]
+        HEALTH["Health Check"]
+    end
+
+    subgraph "Configuration Layer 配置层"
+        CONFIG["CassandraConfig\ncontact_points / consistency\ntimeouts / compression"]
+        AUTH["AuthConfig\nusername / password"]
+    end
+
+    subgraph "Transport Layer 传输层"
+        SCYLLA["Scylla Driver"]
+        CONN_POOL["Connection Pool\nPer-Host Connections"]
+        COMPRESS["LZ4 Compression"]
+    end
+
+    subgraph "Cassandra Cluster"
+        LB["Load Balancer"]
+        NODE1["Node 1"]
+        NODE2["Node 2"]
+        NODE3["Node 3"]
+    end
+
+    subgraph "Error Handling 错误处理"
+        ERROR["CassandraError\nConnectionError / QueryError\nSerializationError"]
+    end
+
+    APP --> REPO_IMPL
+    REPO_IMPL --> REPO_TRAIT
+    REPO_IMPL --> QB
+    REPO_TRAIT --> CLIENT
+    QB --> CLIENT
+    POOL_MGR --> CLIENT
+
+    CLIENT --> SESSION
+    CLIENT --> STMT_CACHE
+    CLIENT --> CONFIG
+    CONFIG --> AUTH
+
+    SESSION --> RETRY
+    RETRY --> CB
+    CB --> HEALTH
+
+    RETRY --> SCYLLA
+    CB --> SCYLLA
+    SCYLLA --> CONN_POOL
+    SCYLLA --> COMPRESS
+
+    CONN_POOL --> LB
+    LB --> NODE1
+    LB --> NODE2
+    LB --> NODE3
+
+    CLIENT -. error .-> ERROR
+    RETRY -. error .-> ERROR
+    CB -. error .-> ERROR
+    SCYLLA -. error .-> ERROR
+
+    style APP fill:#dbeafe
+    style CLIENT fill:#fef9c3
+    style RETRY fill:#fee2e2
+    style CB fill:#fee2e2
+    style SCYLLA fill:#dcfce7
+    style ERROR fill:#fce7f3
+```
+
+### 查询执行时序图
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Repo as Repository
+    participant Client as CassandraClient
+    participant Retry as RetryPolicy
+    participant CB as CircuitBreaker
+    participant Pool as ConnectionPool
+    participant DB as Cassandra Cluster
+
+    App->>Repo: find_by_id("user-123")
+    Repo->>Client: query(cql, params)
+    Client->>Client: Prepare Statement (check cache)
+    Client->>Client: Set Consistency Level
+
+    Client->>Retry: execute_with_retry()
+
+    loop Max 3 Retries
+        Retry->>CB: check circuit state
+        alt Circuit Closed
+            CB->>Pool: get connection
+            Pool->>DB: execute query
+            alt Success
+                DB-->>Pool: result rows
+                Pool-->>CB: success
+                CB->>CB: record_success()
+                CB-->>Retry: result
+            else Network Error
+                DB--xPool: error
+                CB->>CB: record_failure()
+                CB-->>Retry: error
+                Retry->>Retry: backoff (100ms -> 200ms -> 400ms)
+            end
+        else Circuit Open
+            CB-->>Retry: fast fail
+        end
+    end
+
+    Retry-->>Client: Result
+    Client->>Client: Deserialize to Rust type
+    Client-->>Repo: Result&lt;User&gt;
+    Repo-->>App: Option&lt;User&gt;
+```
+
 ### 核心模块
 
 1. **Client 层** (`client.rs`)
