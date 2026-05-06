@@ -14,11 +14,10 @@ struct User {
 }
 
 impl scylla::serialize::row::SerializeRow for User {
-    fn serialize(&self, ctx: &scylla::serialize::row::RowSerializationContext<'_>, writer: &mut scylla::serialize::writers::RowWriter) -> Result<(), scylla::serialize::SerializationError> {
-        // This is a simplified implementation
-        // In production, you'd properly serialize each field
+    fn serialize(&self, _ctx: &scylla::serialize::row::RowSerializationContext<'_>, _writer: &mut scylla::serialize::writers::RowWriter) -> Result<(), scylla::serialize::SerializationError> {
         Ok(())
     }
+    fn is_empty(&self) -> bool { false }
 }
 
 // Implement Repository trait for User

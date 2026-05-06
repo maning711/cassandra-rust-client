@@ -1,4 +1,3 @@
-use crate::client::CassandraClient;
 use crate::error::Result;
 use std::future::Future;
 use std::time::Duration;
