@@ -146,8 +146,8 @@ sequenceDiagram
 
     Retry-->>Client: Result
     Client->>Client: Deserialize to Rust type
-    Client-->>Repo: Result&lt;User&gt;
-    Repo-->>App: Option&lt;User&gt;
+    Client-->>Repo: Result[User]
+    Repo-->>App: Option[User]
 ```
 
 ### 核心模块
