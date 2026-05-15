@@ -381,12 +381,128 @@ let repo2 = OrderRepository::new(Arc::clone(&client));
 
 ## 10. 未来扩展方向
 
-1. **分布式追踪**: 集成 OpenTelemetry
-2. **自动分区**: 智能数据分区策略
-3. **缓存层**: 集成 Redis 缓存
-4. **Schema 迁移**: 自动化 schema 管理
-5. **读写分离**: 支持读写分离优化
-6. **多数据中心**: 跨数据中心复制支持
+| 规划功能 | 说明 |
+|---------|------|
+| 📡 OpenTelemetry | 分布式追踪，接入客户端层 |
+| 🗄️ Redis Cache Layer | 缓存热点数据，减少 Cassandra 压力 |
+| 📊 Prometheus Metrics | 指标采集与监控 |
+| 🔄 Schema Migration | 自动化 Schema 版本管理 |
+| ⚖️ Read/Write Splitting | 读写分离，提升吞吐 |
+| 🌍 Multi-DataCenter | 跨数据中心复制支持 |
+| 🧩 Middleware Hooks | 查询前后自定义钩子 |
+| 🤖 Auto Partitioning | 智能数据分区策略 |
+
+### 未来架构演进图
+
+> 🟢 绿色实线 = 现有功能  
+> ⬜ 灰色虚线 = 未来规划（规划中）
+
+```mermaid
+graph TB
+    classDef existing fill:#2d6a4f,stroke:#1b4332,color:#fff
+    classDef futureNode fill:#343a40,stroke:#6c757d,color:#adb5bd,stroke-dasharray: 6 3
+
+    subgraph APP["Application Layer 业务层"]
+        A1["Application Code"]
+        A2["UserRepository / OrderRepository"]
+    end
+
+    subgraph REPO["Repository Layer 仓储层"]
+        R1["Repository Trait\ninsert / find / update / delete"]
+        R2["QueryBuilder — Type-Safe CQL"]
+        R3["PoolManager"]
+    end
+
+    subgraph CLIENT["Client Layer 客户端层"]
+        C1["CassandraClient"]
+        C2["Arc<Session> — Thread-Safe Shared"]
+        C3["Prepared Statement Cache"]
+    end
+
+    subgraph RESILIENCE["Resilience Layer 弹性层"]
+        RE1["RetryPolicy — Exponential Backoff"]
+        RE2["CircuitBreaker — Fast Fail"]
+        RE3["Health Check"]
+    end
+
+    subgraph CONFIG["Configuration Layer 配置层"]
+        CF1["CassandraConfig\ncontact_points / consistency\ntimeouts / compression"]
+        CF2["AuthConfig — username / password"]
+    end
+
+    subgraph TRANSPORT["Transport Layer 传输层"]
+        T1["Scylla Driver"]
+        T2["Connection Pool — Per-Host"]
+        T3["LZ4 Compression"]
+    end
+
+    subgraph CLUSTER["Cassandra Cluster"]
+        CL1["Load Balancer"]
+        CL2["Node 1"]
+        CL3["Node 2"]
+        CL4["Node 3"]
+    end
+
+    subgraph ERROR["Error Handling 错误处理"]
+        E1["CassandraError\nConnectionError / QueryError\nSerializationError"]
+    end
+
+    subgraph FUTURE["🚀 Future Roadmap 未来规划（规划中）"]
+        direction TB
+        F1["📡 OpenTelemetry\n分布式追踪"]
+        F2["🗄️ Redis Cache Layer\n缓存层集成"]
+        F3["📊 Prometheus Metrics\n指标监控"]
+        F4["🔄 Schema Migration\n自动化 Schema 管理"]
+        F5["⚖️ Read/Write Splitting\n读写分离"]
+        F6["🌍 Multi-DataCenter\n跨数据中心复制"]
+        F7["🧩 Middleware Hooks\n查询前后钩子"]
+        F8["🤖 Auto Partitioning\n智能数据分区"]
+    end
+
+    A1 --> A2
+    A2 --> R1
+    A2 --> R2
+    R1 --> C1
+    R2 --> C1
+    R3 --> C1
+    C1 --> C2
+    C1 --> C3
+    C1 --> CF1
+    CF1 --> CF2
+    C2 --> RE1
+    RE1 --> RE2
+    RE2 --> RE3
+    RE1 --> T1
+    RE2 --> T1
+    T1 --> T2
+    T1 --> T3
+    T2 --> CL1
+    CL1 --> CL2
+    CL1 --> CL3
+    CL1 --> CL4
+    C1 -. error .-> E1
+    RE1 -. error .-> E1
+    RE2 -. error .-> E1
+
+    C1 -.->|"计划接入"| F1
+    C1 -.->|"计划接入"| F2
+    C1 -.->|"计划接入"| F3
+    R1 -.->|"计划支持"| F4
+    T2 -.->|"计划支持"| F5
+    CL1 -.->|"计划支持"| F6
+    C1 -.->|"计划支持"| F7
+    R2 -.->|"计划支持"| F8
+
+    class A1,A2 existing
+    class R1,R2,R3 existing
+    class C1,C2,C3 existing
+    class RE1,RE2,RE3 existing
+    class CF1,CF2 existing
+    class T1,T2,T3 existing
+    class CL1,CL2,CL3,CL4 existing
+    class E1 existing
+    class F1,F2,F3,F4,F5,F6,F7,F8 futureNode
+```
 
 ## 总结
 
